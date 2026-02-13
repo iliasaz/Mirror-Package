@@ -114,7 +114,8 @@ struct Mirror: ParsableCommand {
             }
         }
 
-        // Generate docker mirrors config
+        // Generate mirror config files
+        try writeMirrorsConfig(mirrors: mirrors)
         try writeDockerMirrorsConfig(mirrors: mirrors)
     }
 
@@ -174,6 +175,28 @@ struct Mirror: ParsableCommand {
         return returnSubDir
     }
 
+    func writeMirrorsConfig(mirrors: [String: String]) throws {
+        var entries: [[String: String]] = []
+        for (original, localPath) in mirrors {
+            entries.append(["original": original, "mirror": localPath])
+            if !original.hasSuffix(".git") {
+                entries.append(["original": original.appending(".git"), "mirror": localPath])
+            }
+        }
+        let config: [String: Any] = [
+            "object": entries,
+            "version": 1
+        ]
+        let jsonData = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        let configDir = FilePath(FileManager.default.currentDirectoryPath)
+            .appending(".swiftpm")
+            .appending("configuration")
+        try FileManager.default.createDirectory(atPath: configDir.string, withIntermediateDirectories: true)
+        let outputPath = configDir.appending("mirrors.json")
+        try jsonData.write(to: URL(fileURLWithPath: outputPath.string))
+        print("Wrote mirrors config to \(outputPath.string)")
+    }
+
     func writeDockerMirrorsConfig(mirrors: [String: String]) throws {
         var entries: [[String: String]] = []
         for (original, localPath) in mirrors {
@@ -191,7 +214,7 @@ struct Mirror: ParsableCommand {
             "object": entries,
             "version": 1
         ]
-        let jsonData = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted, .sortedKeys])
+        let jsonData = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         let outputPath = FilePath(FileManager.default.currentDirectoryPath).appending("docker-mirrors.json")
         try jsonData.write(to: URL(fileURLWithPath: outputPath.string))
         print("Wrote docker mirrors config to \(outputPath.string)")
