@@ -16,7 +16,7 @@ struct DecodedManifest: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let fileVersion = try container.decode(Int.self, forKey: .version)
-        if fileVersion != 2 {
+        if fileVersion != 2 && fileVersion != 3 {
             print("Unknown Package.resolved version! Got \(fileVersion) but I only handle version 2 (swift-tools-version:5.6)")
             throw ReadError.incompatibleVersion
         }
@@ -31,17 +31,25 @@ enum ReadError: Error {
     case unreadable
 }
 
+struct PinState: Decodable {
+    let revision: String?
+    let version: String?
+}
+
 struct Pin: Decodable {
     enum CodingKeys: CodingKey { case identity, kind, location, state }
 
     let identity: String
     let kind: String
     let location: String
+    let revision: String?
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.identity = try container.decode(String.self, forKey: .identity)
         self.kind = try container.decode(String.self, forKey: .kind)
         self.location = try container.decode(String.self, forKey: .location)
+        let state = try container.decodeIfPresent(PinState.self, forKey: .state)
+        self.revision = state?.revision
     }
 }
