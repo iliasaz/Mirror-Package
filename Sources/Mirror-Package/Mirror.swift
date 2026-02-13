@@ -104,9 +104,8 @@ struct Mirror: ParsableCommand {
         for dep in dependencies {
             if let mirror = mirrors[dep.url] {
                 do {
-                    try registerMirror(source: dep.url, mirror: mirror)
-                    if !dep.url.hasSuffix(".git") {
-                        try registerMirror(source: dep.url.appending(".git"), mirror: mirror)
+                    for variant in urlVariants(dep.url) {
+                        try registerMirror(source: variant, mirror: mirror)
                     }
                 } catch {
                     print("Error registering mirror for \(dep.url)")
@@ -127,6 +126,15 @@ struct Mirror: ParsableCommand {
                           "--mirror", mirror]
         try task.run()
         task.waitUntilExit()
+    }
+
+    /// Returns both the `.git` and non-`.git` variants of a URL.
+    func urlVariants(_ url: String) -> [String] {
+        if url.hasSuffix(".git") {
+            return [url, String(url.dropLast(4))]
+        } else {
+            return [url, url.appending(".git")]
+        }
     }
 
     @discardableResult
@@ -178,9 +186,8 @@ struct Mirror: ParsableCommand {
     func writeMirrorsConfig(mirrors: [String: String]) throws {
         var entries: [[String: String]] = []
         for (original, localPath) in mirrors {
-            entries.append(["original": original, "mirror": localPath])
-            if !original.hasSuffix(".git") {
-                entries.append(["original": original.appending(".git"), "mirror": localPath])
+            for variant in urlVariants(original) {
+                entries.append(["original": variant, "mirror": localPath])
             }
         }
         let config: [String: Any] = [
@@ -200,14 +207,11 @@ struct Mirror: ParsableCommand {
     func writeDockerMirrorsConfig(mirrors: [String: String]) throws {
         var entries: [[String: String]] = []
         for (original, localPath) in mirrors {
-            // Derive the subdirectory name from the local mirror path
             let subDir = FilePath(localPath).lastComponent?.string ?? ""
             var dockerPath = FilePath(dockerMirrorPath)
             dockerPath.append(subDir)
-            entries.append(["original": original, "mirror": dockerPath.string])
-            // Also add .git variant if the original doesn't end with .git
-            if !original.hasSuffix(".git") {
-                entries.append(["original": original.appending(".git"), "mirror": dockerPath.string])
+            for variant in urlVariants(original) {
+                entries.append(["original": variant, "mirror": dockerPath.string])
             }
         }
         let config: [String: Any] = [
